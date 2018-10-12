@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 from theano import tensor as T
 import numpy as np
 from random import shuffle
@@ -31,8 +31,8 @@ def unnormalize(x):
     return (x + mean_bgr[None, ::-1, None, None]) / 255.
 
 
-def log_std(x, axis):
-    return T.log(T.sqrt(T.var(x, axis=axis) + 1e-8))
+def std(x, axis):
+    return T.sqrt(T.var(x, axis=axis) + 1e-8)
 
 
 class VGG19(nn.Sequential):
@@ -98,14 +98,20 @@ class Encoder(nn.Sequential):
         return out
 
     def vgg19_loss(self, x, y):
-        out1_x, out1_y = self[self.layer_name+'/vgg19'][:1](x), self[self.layer_name+'/vgg19'][:1](y)
-        out2_x, out2_y = self[self.layer_name+'/vgg19'][1:4](out1_x), self[self.layer_name+'/vgg19'][1:4](out1_y)
-        out3_x, out3_y = self[self.layer_name+'/vgg19'][4:7](out2_x), self[self.layer_name+'/vgg19'][4:7](out2_y)
-        out4_x, out4_y = self[self.layer_name+'/vgg19'][7:12](out3_x), self[self.layer_name+'/vgg19'][7:12](out3_y)
+        input = T.concatenate((x, y))
+        out1 = self[self.layer_name+'/vgg19'][:1](input)
+        out2 = self[self.layer_name+'/vgg19'][1:4](out1)
+        out3 = self[self.layer_name+'/vgg19'][4:7](out2)
+        out4 = self[self.layer_name+'/vgg19'][7:12](out3)
+        idx = x.shape[0]
+        out1_x, out1_y = out1[:idx], out1[idx:]
+        out2_x, out2_y = out2[:idx], out2[idx:]
+        out3_x, out3_y = out3[:idx], out3[idx:]
+        out4_x, out4_y = out4[:idx], out4[idx:]
         return nn.norm_error(T.mean(out1_x, (2, 3)), T.mean(out1_y, (2, 3))) + nn.norm_error(T.mean(out2_x, (2, 3)), T.mean(out2_y, (2, 3))) + \
                nn.norm_error(T.mean(out3_x, (2, 3)), T.mean(out3_y, (2, 3))) + nn.norm_error(T.mean(out4_x, (2, 3)), T.mean(out4_y, (2, 3))) + \
-               nn.norm_error(log_std(out1_x, (2, 3)), log_std(out1_y, (2, 3))) + nn.norm_error(log_std(out2_x, (2, 3)), log_std(out2_y, (2, 3))) + \
-               nn.norm_error(log_std(out3_x, (2, 3)), log_std(out3_y, (2, 3))) + nn.norm_error(log_std(out4_x, (2, 3)), log_std(out4_y, (2, 3)))
+               nn.norm_error(std(out1_x, (2, 3)), std(out1_y, (2, 3))) + nn.norm_error(std(out2_x, (2, 3)), std(out2_y, (2, 3))) + \
+               nn.norm_error(std(out3_x, (2, 3)), std(out3_y, (2, 3))) + nn.norm_error(std(out4_x, (2, 3)), std(out4_y, (2, 3)))
 
 
 class Decoder(nn.Sequential):
