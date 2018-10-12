@@ -9,7 +9,7 @@ import h5py
 
 import neuralnet as nn
 
-mean_bgr = np.array([103.939, 116.779, 123.68], dtype='float32')[None, None, :]
+mean_bgr = np.array([103.939, 116.779, 123.68], dtype='float32')
 input_path_train = 'D:/1_Share/MS_COCO_train'
 input_path_val = 'D:/1_Share/MS_COCO_val'
 style_path = 'D:/1_Share/wikiart'
@@ -24,12 +24,10 @@ val_freq = 500
 
 
 def post_process(x):
-    mean_bgr = np.array([103.939, 116.779, 123.68], dtype='float32')
     return (x / 2. + .5) * 255. - mean_bgr[None, ::-1, None, None]
 
 
 def unnormalize(x):
-    mean_bgr = np.array([103.939, 116.779, 123.68], dtype='float32')
     return (x + mean_bgr[None, ::-1, None, None]) / 255.
 
 
@@ -152,10 +150,11 @@ def prep_image(im, size=256, color='bgr', resize=512):
     im = nn.utils.crop_random(im, size)
 
     im = im.astype('float32')
+    mean = mean_bgr[None, None, :]
     if color == 'bgr':
-        im = im[:, :, ::-1] - mean_bgr
+        im = im[..., ::-1] - mean
     elif color == 'rgb':
-        im = im - mean_bgr[:, :, ::-1]
+        im = im - mean[..., ::-1]
     else:
         raise NotImplementedError
     return np.transpose(im[None], (0, 3, 1, 2))
