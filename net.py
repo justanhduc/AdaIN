@@ -28,6 +28,7 @@ def post_process(x):
 
 
 def unnormalize(x):
+    x = np.minimum(np.maximum(x, 0.), 255.)
     return (x + mean_bgr[None, ::-1, None, None]) / 255.
 
 
@@ -142,6 +143,10 @@ class Decoder(nn.Sequential):
         self.append(
             nn.Conv2DLayer(self.output_shape, 3, 3, border_mode='ref', no_bias=False, activation='linear',
                            layer_name=name + '/output'))
+
+    def get_output(self, input):
+        out = super(Decoder, self).get_output(input)
+        return out - mean_bgr[None, ::-1, None, None]
 
 
 def prep_image(im, size=256, color='bgr', resize=512):
