@@ -33,7 +33,7 @@ def unnormalize(x):
     return (x + mean_bgr[None, ::-1, None, None]) / 255.
 
 
-def log_td(x, axis):
+def log_std(x, axis):
     return T.log(T.sqrt(T.var(x, axis=axis) + 1e-8))
 
 
@@ -106,8 +106,8 @@ class Encoder(nn.Sequential):
         out4_x, out4_y = self[self.layer_name+'/vgg19'][7:12](out3_x), self[self.layer_name+'/vgg19'][7:12](out3_y)
         return nn.norm_error(T.mean(out1_x, (2, 3)), T.mean(out1_y, (2, 3))) + nn.norm_error(T.mean(out2_x, (2, 3)), T.mean(out2_y, (2, 3))) + \
                nn.norm_error(T.mean(out3_x, (2, 3)), T.mean(out3_y, (2, 3))) + nn.norm_error(T.mean(out4_x, (2, 3)), T.mean(out4_y, (2, 3))) + \
-               nn.norm_error(log_td(out1_x, (2, 3)), log_td(out1_y, (2, 3))) + nn.norm_error(log_td(out2_x, (2, 3)), log_td(out2_y, (2, 3))) + \
-               nn.norm_error(log_td(out3_x, (2, 3)), log_td(out3_y, (2, 3))) + nn.norm_error(log_td(out4_x, (2, 3)), log_td(out4_y, (2, 3)))
+               nn.norm_error(log_std(out1_x, (2, 3)), log_std(out1_y, (2, 3))) + nn.norm_error(log_std(out2_x, (2, 3)), log_std(out2_y, (2, 3))) + \
+               nn.norm_error(log_std(out3_x, (2, 3)), log_std(out3_y, (2, 3))) + nn.norm_error(log_std(out4_x, (2, 3)), log_std(out4_y, (2, 3)))
 
 
 class Decoder(nn.Sequential):
