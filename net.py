@@ -88,7 +88,7 @@ class Encoder(nn.Sequential):
         super(Encoder, self).__init__(input_shape=input_shape, layer_name=name)
         self.append(VGG19(self.output_shape, name=name+'/vgg19'))
         self.append(nn.AdaptiveInstanceNorm2DLayer(self.output_shape, layer_name=name+'/adain'))
-        self[name+'/vgg19'].load_params('D:/2_Personal/Duc/neuralnet_theano/neuralnet/test_files/vgg19_weights.h5')
+        self[name+'/vgg19'].load_params('vgg19_weights.h5')
 
     def get_output(self, input):
         out = self[self.layer_name+'/vgg19'](input)
