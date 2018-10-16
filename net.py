@@ -19,7 +19,7 @@ test_style_img_path = 'D:/1_Share/arts2photos/vangogh2photo/trainA/00125.jpg'
 num_val_imgs = 240
 input_size = (3, 256, 256)
 bs = 8
-weight = 1e-2
+weight = 1e1
 lr = 1e-4
 lr_decay_rate = 5e-5
 n_epochs = 30
@@ -111,6 +111,10 @@ class VGG19(nn.Sequential):
         print('Pretrained weights loaded successfully!')
 
 
+def norm_error(x, y):
+    return T.sum((x - y) ** 2) / T.cast(x.shape[0], 'float32')
+
+
 class Encoder(nn.Sequential):
     def __init__(self, input_shape, name='Encoder'):
         super(Encoder, self).__init__(input_shape=input_shape, layer_name=name)
@@ -122,7 +126,7 @@ class Encoder(nn.Sequential):
         out = self[self.layer_name+'/vgg19'](input)
         num_ins = out.shape[0] // 2
         x, y = out[:num_ins], out[num_ins:]
-        muy, sigma = T.mean(y, (2, 3)), T.std(y, (2, 3))
+        muy, sigma = T.mean(y, (2, 3)), std(y, (2, 3))
         out = self[self.layer_name+'/adain']((x, T.concatenate((sigma, muy), 1)))
         return out
 
@@ -137,48 +141,45 @@ class Encoder(nn.Sequential):
         out2_x, out2_y = out2[:idx], out2[idx:]
         out3_x, out3_y = out3[:idx], out3[idx:]
         out4_x, out4_y = out4[:idx], out4[idx:]
-        return nn.norm_error(T.mean(out1_x, (2, 3)), T.mean(out1_y, (2, 3))) + \
-               nn.norm_error(T.mean(out2_x, (2, 3)), T.mean(out2_y, (2, 3))) + \
-               nn.norm_error(T.mean(out3_x, (2, 3)), T.mean(out3_y, (2, 3))) + \
-               nn.norm_error(T.mean(out4_x, (2, 3)), T.mean(out4_y, (2, 3))) + \
-               nn.norm_error(std(out1_x, (2, 3)), std(out1_y, (2, 3))) + \
-               nn.norm_error(std(out2_x, (2, 3)), std(out2_y, (2, 3))) + \
-               nn.norm_error(std(out3_x, (2, 3)), std(out3_y, (2, 3))) + \
-               nn.norm_error(std(out4_x, (2, 3)), std(out4_y, (2, 3)))
+        loss = norm_error(T.mean(out1_x, (2, 3)), T.mean(out1_y, (2, 3))) + \
+               norm_error(T.mean(out2_x, (2, 3)), T.mean(out2_y, (2, 3))) + \
+               norm_error(T.mean(out3_x, (2, 3)), T.mean(out3_y, (2, 3))) + \
+               norm_error(T.mean(out4_x, (2, 3)), T.mean(out4_y, (2, 3))) + \
+               norm_error(std(out1_x, (2, 3)), std(out1_y, (2, 3))) + \
+               norm_error(std(out2_x, (2, 3)), std(out2_y, (2, 3))) + \
+               norm_error(std(out3_x, (2, 3)), std(out3_y, (2, 3))) + \
+               norm_error(std(out4_x, (2, 3)), std(out4_y, (2, 3)))
+        return loss
 
 
 class Decoder(nn.Sequential):
     def __init__(self, input_shape, name='Decoder'):
         super(Decoder, self).__init__(input_shape=input_shape, layer_name=name)
         self.append(
-            nn.Conv2DLayer(self.output_shape, 512, 3, border_mode='ref', no_bias=False, layer_name=name + '/conv1_1'))
+            nn.Conv2DLayer(self.output_shape, 512, 3, init=nn.GlorotUniform(), border_mode='ref', no_bias=False, layer_name=name + '/conv1_1'))
         self.append(nn.UpsamplingLayer(self.output_shape, 2, method='nearest', layer_name=name+'/up1'))
 
         self.append(
-            nn.Conv2DLayer(self.output_shape, 256, 3, border_mode='ref', no_bias=False, layer_name=name + '/conv2_1'))
+            nn.Conv2DLayer(self.output_shape, 256, 3, init=nn.GlorotUniform(), border_mode='ref', no_bias=False, layer_name=name + '/conv2_1'))
         self.append(
-            nn.Conv2DLayer(self.output_shape, 256, 3, border_mode='ref', no_bias=False, layer_name=name + '/conv2_2'))
+            nn.Conv2DLayer(self.output_shape, 256, 3, init=nn.GlorotUniform(), border_mode='ref', no_bias=False, layer_name=name + '/conv2_2'))
         self.append(
-            nn.Conv2DLayer(self.output_shape, 256, 3, border_mode='ref', no_bias=False, layer_name=name + '/conv2_3'))
+            nn.Conv2DLayer(self.output_shape, 256, 3, init=nn.GlorotUniform(), border_mode='ref', no_bias=False, layer_name=name + '/conv2_3'))
         self.append(
-            nn.Conv2DLayer(self.output_shape, 256, 3, border_mode='ref', no_bias=False, layer_name=name + '/conv2_4'))
+            nn.Conv2DLayer(self.output_shape, 256, 3, init=nn.GlorotUniform(), border_mode='ref', no_bias=False, layer_name=name + '/conv2_4'))
         self.append(nn.UpsamplingLayer(self.output_shape, 2, method='nearest', layer_name=name + '/up2'))
 
         self.append(
-            nn.Conv2DLayer(self.output_shape, 128, 3, border_mode='ref', no_bias=False, layer_name=name + '/conv3_1'))
+            nn.Conv2DLayer(self.output_shape, 128, 3, init=nn.GlorotUniform(), border_mode='ref', no_bias=False, layer_name=name + '/conv3_1'))
         self.append(
-            nn.Conv2DLayer(self.output_shape, 128, 3, border_mode='ref', no_bias=False, layer_name=name + '/conv3_2'))
+            nn.Conv2DLayer(self.output_shape, 128, 3, init=nn.GlorotUniform(), border_mode='ref', no_bias=False, layer_name=name + '/conv3_2'))
         self.append(nn.UpsamplingLayer(self.output_shape, 2, method='nearest', layer_name=name + '/up3'))
 
         self.append(
-            nn.Conv2DLayer(self.output_shape, 64, 3, border_mode='ref', no_bias=False, layer_name=name + '/conv4_1'))
+            nn.Conv2DLayer(self.output_shape, 64, 3, init=nn.GlorotUniform(), border_mode='ref', no_bias=False, layer_name=name + '/conv4_1'))
         self.append(
-            nn.Conv2DLayer(self.output_shape, 3, 3, border_mode='ref', no_bias=False, activation='tanh',
+            nn.Conv2DLayer(self.output_shape, 3, 3, init=nn.GlorotUniform(), border_mode='ref', no_bias=False, activation='linear',
                            layer_name=name + '/output'))
-
-    def get_output(self, input):
-        output = super(Decoder, self).get_output(input)
-        return output / 2. + .5
 
 
 def prep_image(im, size=256, resize=512):
@@ -302,8 +303,8 @@ def train():
                     mon.imwrite('stylized image %d' % i, img_styled, callback=unnormalize)
                     mon.imwrite('input %d' % i, X_.get_value(), callback=unnormalize)
                     mon.imwrite('style %d' % i, Y_.get_value(), callback=unnormalize)
-                mon.dump(enc.params, 'encoder.npz', keep=5)
-                mon.dump(dec.params, 'decoder.npz', keep=5)
+                mon.dump(nn.utils.shared2numpy(enc.params), 'encoder.npz', keep=5)
+                mon.dump(nn.utils.shared2numpy(dec.params), 'decoder.npz', keep=5)
     mon.flush()
     print('Training finished!')
 
