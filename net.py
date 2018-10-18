@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 from theano import tensor as T
 import numpy as np
 from random import shuffle
@@ -9,9 +9,9 @@ import h5py
 
 import neuralnet as nn
 
-mean_bgr = np.array([103.939, 116.779, 123.68], dtype='float32')
 input_path_train = 'D:/1_Share/MS_COCO_train'
 input_path_val = 'D:/1_Share/MS_COCO_val'
+input_path_test = 'D:/1_Share/MS_COCO_test'
 style_path = 'D:/1_Share/wikiart'
 style_train_val_path = 'C:/Users/justanhduc/Downloads/ArtGAN-master/WikiArt Dataset/Style'
 test_input_img_path = 'D:/2_Personal/Duc/neuralnet_theano/neuralnet/test_files/lena_small.png'
@@ -19,7 +19,8 @@ test_style_img_path = 'D:/1_Share/arts2photos/vangogh2photo/trainA/00125.jpg'
 num_val_imgs = 240
 input_size = (3, 256, 256)
 bs = 8
-weight = 1e1
+bs_test = 20
+weight = 1e2
 lr = 1e-4
 lr_decay_rate = 5e-5
 n_epochs = 30
@@ -27,12 +28,8 @@ print_freq = 100
 val_freq = 500
 
 
-def post_process(x):
-    return (x / 2. + .5) * 255. - mean_bgr[None, ::-1, None, None]
-
-
 def unnormalize(x):
-    x = np.minimum(np.maximum(x, 0.), 1.)
+    x = np.clip(x, 0., 1.)
     return x
 
 
@@ -123,9 +120,13 @@ class Encoder(nn.Sequential):
         self[name+'/vgg19'].load_params('C:/Users/justanhduc/Downloads/tf-adain-master\models/vgg19_weights_normalized.h5')
 
     def get_output(self, input):
-        out = self[self.layer_name+'/vgg19'](input)
-        num_ins = out.shape[0] // 2
-        x, y = out[:num_ins], out[num_ins:]
+        if isinstance(input, (tuple, list)):
+            x, y = input
+            x, y = self[self.layer_name+'/vgg19'](x), self[self.layer_name+'/vgg19'](y)
+        else:
+            out = self[self.layer_name+'/vgg19'](input)
+            num_ins = out.shape[0] // 2
+            x, y = out[:num_ins], out[num_ins:]
         muy, sigma = T.mean(y, (2, 3)), std(y, (2, 3))
         out = self[self.layer_name+'/adain']((x, T.concatenate((sigma, muy), 1)))
         return out
@@ -181,6 +182,11 @@ class Decoder(nn.Sequential):
             nn.Conv2DLayer(self.output_shape, 3, 3, init=nn.GlorotUniform(), border_mode='ref', no_bias=False, activation='linear',
                            layer_name=name + '/output'))
 
+    def get_output(self, input):
+        out = super(Decoder, self).get_output(input)
+        out = (out - T.min(out, keepdims=True)) / (T.max(out, keepdims=True) - T.min(out, keepdims=True))
+        return out
+
 
 def prep_image(im, size=256, resize=512):
     h, w, _ = im.shape
@@ -196,6 +202,12 @@ def prep_image(im, size=256, resize=512):
     return np.transpose(im[None], (0, 3, 1, 2)) / 255.
 
 
+def prep_image_test(im, size=512, resize=550):
+    im = nn.utils.crop_center(im, [size, size], resize)
+    im = im.astype('float32')
+    return np.transpose(im[None], (0, 3, 1, 2)) / 255.
+
+
 class DataManager(nn.DataManager):
     def __init__(self, placeholders, path, bs, n_epochs, shuffle=False):
         super(DataManager, self).__init__(None, placeholders, path, bs, n_epochs, shuffle=shuffle)
@@ -204,7 +216,7 @@ class DataManager(nn.DataManager):
     def load_data(self):
         source = os.listdir(self.path[0])
         source = [self.path[0] + '/' + f for f in source]
-        if 'val' in self.path[0]:
+        if 'val' in self.path[0] or 'test' in self.path[0]:
             source = source[:num_val_imgs]
 
         file = open(self.path[1], 'r')
@@ -245,8 +257,8 @@ class DataManager(nn.DataManager):
                     exit = True
                     break
 
-                imgs.append(prep_image(img))
-                stys.append(prep_image(sty))
+                imgs.append(prep_image_test(img) if 'test' in self.path[0] else prep_image(img))
+                stys.append(prep_image_test(sty, 256, 512) if 'test' in self.path[0] else prep_image(sty))
 
             if exit:
                 continue
@@ -303,38 +315,35 @@ def train():
                     mon.imwrite('stylized image %d' % i, img_styled, callback=unnormalize)
                     mon.imwrite('input %d' % i, X_.get_value(), callback=unnormalize)
                     mon.imwrite('style %d' % i, Y_.get_value(), callback=unnormalize)
-                mon.dump(nn.utils.shared2numpy(enc.params), 'encoder.npz', keep=5)
                 mon.dump(nn.utils.shared2numpy(dec.params), 'decoder.npz', keep=5)
     mon.flush()
     print('Training finished!')
 
 
 def test():
-    enc = Encoder((None,) + input_size)
+    enc = Encoder((None,) + (3, 512, 512))
     dec = Decoder(enc.output_shape)
-    mon = nn.Monitor(model_name='AdaIN style transfer', current_folder='D:/2_Personal/Duc/AdaIN style transfer/run1')
-    trained_dec_params = [p.get_value() for p in mon.load('decoder-56360.npz')]
+    mon = nn.Monitor(model_name='AdaIN style transfer', current_folder='D:/2_Personal/Duc/AdaIN style transfer/run6')
+    trained_dec_params = [p for p in mon.load('decoder-159169.npz')]
     nn.utils.batch_set_value(zip(dec.params, trained_dec_params))
 
     X = T.tensor4('input')
     Y = T.tensor4('style')
+    X_ = nn.placeholder((bs_test,) + (3, 512, 512), name='input_plhd')
+    Y_ = nn.placeholder((bs_test,) + (3, 256, 256), name='style_plhd')
 
     nn.set_training_off()
-    X_styled = dec(enc(T.concatenate((X, Y))))
-    test = nn.function([X, Y], X_styled, name='test generator')
+    X_styled = dec(enc((X, Y)))
+    test = nn.function([], X_styled, givens={X: X_, Y: Y_}, name='test generator')
 
-    input = misc.imread(test_input_img_path)
-    style = misc.imread(test_style_img_path)
-    input = prep_image(input, input.shape[0], resize=input.shape[0])
-    style = prep_image(style, input.shape[-1], resize=input.shape[-1] + 10)
-
-    output = test(input, style)
-    # output = (output + mean_bgr[None, ::-1, None, None]) / 255.
-    output = (output - np.min(output, keepdims=True)) / (np.max(output, keepdims=True) - np.min(output, keepdims=True))
-    mon.imwrite('test input', input, callback=unnormalize)
-    mon.imwrite('test style', style, callback=unnormalize)
-    mon.imwrite('test output', output, callback=unnormalize)
-    mon.flush()
+    data_test = DataManager((X_, Y_), (input_path_test, style_train_val_path + '/style_val.csv'), bs_test, 1)
+    for i in data_test:
+        img_styled = test()
+        mon.imwrite('test output %d' % i, img_styled, callback=unnormalize)
+        mon.imwrite('test input %d' % i, X_.get_value(), callback=unnormalize)
+        mon.imwrite('test style %d' % i, Y_.get_value(), callback=unnormalize)
+        mon.flush()
+    print('Testing finished!')
 
 
 if __name__ == '__main__':
