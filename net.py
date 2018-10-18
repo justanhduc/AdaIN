@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 from theano import tensor as T
 import numpy as np
 from random import shuffle
@@ -179,12 +179,12 @@ class Decoder(nn.Sequential):
         self.append(
             nn.Conv2DLayer(self.output_shape, 64, 3, init=nn.GlorotUniform(), border_mode='ref', no_bias=False, layer_name=name + '/conv4_1'))
         self.append(
-            nn.Conv2DLayer(self.output_shape, 3, 3, init=nn.GlorotUniform(), border_mode='ref', no_bias=False, activation='linear',
+            nn.Conv2DLayer(self.output_shape, 3, 3, init=nn.GlorotUniform(), border_mode='ref', no_bias=False, activation='tanh',
                            layer_name=name + '/output'))
 
     def get_output(self, input):
         out = super(Decoder, self).get_output(input)
-        out = (out - T.min(out, keepdims=True)) / (T.max(out, keepdims=True) - T.min(out, keepdims=True))
+        out = out / 2. + .5
         return out
 
 
