@@ -9,6 +9,9 @@ import h5py
 
 import neuralnet as nn
 
+checkpoint = 12
+checkpoint_file = 'decoder-91932.npz'
+checkpoint_folder = 'D:/2_Personal/Duc/AdaIN style transfer/run9'
 input_path_train = 'D:/1_Share/MS_COCO_train'
 input_path_val = 'D:/1_Share/MS_COCO_val'
 input_path_test = 'D:/1_Share/MS_COCO_test'
@@ -23,7 +26,7 @@ bs_test = 20
 weight = 1e2
 lr = 1e-4
 lr_decay_rate = 5e-5
-n_epochs = 30
+n_epochs = 20
 print_freq = 100
 val_freq = 500
 
@@ -209,8 +212,8 @@ def prep_image_test(im, size=512, resize=550):
 
 
 class DataManager(nn.DataManager):
-    def __init__(self, placeholders, path, bs, n_epochs, shuffle=False):
-        super(DataManager, self).__init__(None, placeholders, path, bs, n_epochs, shuffle=shuffle)
+    def __init__(self, placeholders, path, bs, n_epochs, shuffle=False, **kwargs):
+        super(DataManager, self).__init__(None, placeholders, path, bs, n_epochs, shuffle=shuffle, **kwargs)
         self.load_data()
 
     def load_data(self):
@@ -295,7 +298,7 @@ def train():
     X_styled = dec(enc(T.concatenate((X, Y))))
     test = nn.function([], X_styled, givens={X: X_, Y: Y_}, name='test generator')
 
-    data_train = DataManager((X_, Y_), (input_path_train, style_train_val_path + '/style_train.csv'), bs, n_epochs, True)
+    data_train = DataManager((X_, Y_), (input_path_train, style_train_val_path + '/style_train.csv'), bs, n_epochs, True,)
     data_test = DataManager((X_, Y_), (input_path_val, style_train_val_path + '/style_val.csv'), bs, 1)
     mon = nn.Monitor(model_name='AdaIN style transfer', root='D:/2_Personal/Duc', valid_freq=print_freq)
     print('Training...')
@@ -346,5 +349,60 @@ def test():
     print('Testing finished!')
 
 
+def resume():
+    enc = Encoder((None,) + input_size)
+    dec = Decoder(enc.output_shape)
+
+    X = T.tensor4('input')
+    Y = T.tensor4('style')
+    X_ = nn.placeholder((bs,) + input_size, name='input_plhd')
+    Y_ = nn.placeholder((bs,) + input_size, name='style_plhd')
+    lr_ = nn.placeholder(value=lr, name='learning rate')
+    idx = T.scalar('iteration', 'int64')
+
+    nn.set_training_on()
+    latent = enc(T.concatenate((X, Y)))
+    X_styled = dec(latent)
+    latent_cycle = enc[0](X_styled)
+
+    content_loss = nn.norm_error(latent, latent_cycle)
+    style_loss = enc.vgg19_loss(X_styled, Y)
+    loss = content_loss + weight * style_loss
+    updates = nn.adam(loss * 1e6, dec.trainable, lr_)
+    nn.anneal_learning_rate(lr_, idx, 'inverse', decay=lr_decay_rate)
+    train = nn.function([idx], [content_loss, style_loss], updates=updates, givens={X: X_, Y: Y_}, name='train generator')
+
+    nn.set_training_off()
+    X_styled = dec(enc(T.concatenate((X, Y))))
+    test = nn.function([], X_styled, givens={X: X_, Y: Y_}, name='test generator')
+
+    data_train = DataManager((X_, Y_), (input_path_train, style_train_val_path + '/style_train.csv'), bs, n_epochs,
+                             True, checkpoint=checkpoint)
+    data_test = DataManager((X_, Y_), (input_path_val, style_train_val_path + '/style_val.csv'), bs, 1)
+    mon = nn.Monitor(model_name='AdaIN style transfer', checkpoint=checkpoint * len(data_train) // bs,
+                     current_folder=checkpoint_folder, valid_freq=print_freq)
+    nn.utils.numpy2shared(mon.load(checkpoint_file), dec.params)
+    print('Training...')
+    for it in data_train:
+        with mon:
+            c_loss_, s_loss_ = train(it)
+            if np.isnan(c_loss_ + s_loss_) or np.isinf(c_loss_ + s_loss_):
+                raise ValueError('Training failed because loss went nan!')
+            mon.plot('content loss', c_loss_)
+            mon.plot('style loss', s_loss_)
+            mon.plot('learning rate', lr_.get_value())
+
+            if it % val_freq == 0:
+                for i in data_test:
+                    img_styled = test()
+                    mon.hist('output histogram %d' % i, img_styled)
+                    mon.imwrite('stylized image %d' % i, img_styled, callback=unnormalize)
+                    mon.imwrite('input %d' % i, X_.get_value(), callback=unnormalize)
+                    mon.imwrite('style %d' % i, Y_.get_value(), callback=unnormalize)
+                mon.dump(nn.utils.shared2numpy(dec.params), 'decoder.npz', keep=5)
+    mon.flush()
+    print('Training finished!')
+
+
 if __name__ == '__main__':
-    train()
+    resume()
