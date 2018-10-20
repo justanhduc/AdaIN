@@ -109,6 +109,7 @@ def train():
                     mon.imwrite('style %d' % i, Y_.get_value(), callback=unnormalize)
                 mon.dump(nn.utils.shared2numpy(dec.params), 'decoder.npz', keep=5)
     mon.flush()
+    mon.dump(nn.utils.shared2numpy(dec.params), 'decoder.npz', keep=5)
     print('Training finished!')
 
 

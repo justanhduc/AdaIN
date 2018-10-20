@@ -33,12 +33,14 @@ To test one pair, simply use
 python train_test.py path-to-input path-to-style --test_one --checkpoint_file checkpoint-file-name --checkpoint_folder folder containing the checkpoint file
 ```
 
-For bulk testing, the code currently support Wikiart style validation only because of reusing the same script to read data. 
+For bulk testing, the code currently supports Wikiart style validation only because of reusing the same script to read data. 
 To test a folder of images, use 
 
 ```
 python train_test.py path-to-input path-to-Wikiart-top-folder --test_bulk --style_train_val_path path-to-Wikiart-metadata --checkpoint_file checkpoint-file-name --checkpoint_folder folder containing the checkpoint file
 ```
+
+A model trained by this implementation can be downloaded [here](https://s3.ap-northeast-2.amazonaws.com/pretrained-theano-models/AdaIN.npz). 
 
 ## Examples
 <p align='center'>
