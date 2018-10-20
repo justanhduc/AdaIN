@@ -71,6 +71,6 @@ python train_test.py path-to-input path-to-Wikiart-top-folder --test_bulk --styl
 ## References
 "Arbitrary Style Transfer in Real-time with Adaptive Instance Normalization" by Huang et al.
 
-The pretrained VGG is taken from [this Tensorflow implementation]().
+The pretrained VGG is taken from [this Tensorflow implementation](https://github.com/ftokarev/tf-adain).
 
 [ArtGAN](https://github.com/cs-chan/ArtGAN) (providing the Wikiart zip file).
