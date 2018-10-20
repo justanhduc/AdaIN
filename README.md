@@ -1,4 +1,5 @@
 #Adaptive Instance Normalization for style transfer
+
 This is a re-implementation of the paper "Arbitrary Style Transfer in Real-time with Adaptive Instance Normalization" by Huang et al.. 
 The implementation follows most but not all details from the paper, including some hyperparameter settings, output activation, etc...
 
