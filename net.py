@@ -10,7 +10,7 @@ import h5py
 import neuralnet as nn
 
 checkpoint = 12
-checkpoint_file = 'decoder-91932.npz'
+checkpoint_file = 'decoder-137447.npz'
 checkpoint_folder = 'D:/2_Personal/Duc/AdaIN style transfer/run9'
 input_path_train = 'D:/1_Share/MS_COCO_train'
 input_path_val = 'D:/1_Share/MS_COCO_val'
@@ -326,9 +326,8 @@ def train():
 def test():
     enc = Encoder((None,) + (3, 512, 512))
     dec = Decoder(enc.output_shape)
-    mon = nn.Monitor(model_name='AdaIN style transfer', current_folder='D:/2_Personal/Duc/AdaIN style transfer/run6')
-    trained_dec_params = [p for p in mon.load('decoder-159169.npz')]
-    nn.utils.batch_set_value(zip(dec.params, trained_dec_params))
+    mon = nn.Monitor(model_name='AdaIN style transfer', current_folder=checkpoint_folder)
+    nn.utils.numpy2shared(mon.load(checkpoint_file), dec.params)
 
     X = T.tensor4('input')
     Y = T.tensor4('style')
@@ -401,8 +400,9 @@ def resume():
                     mon.imwrite('style %d' % i, Y_.get_value(), callback=unnormalize)
                 mon.dump(nn.utils.shared2numpy(dec.params), 'decoder.npz', keep=5)
     mon.flush()
+    mon.dump(nn.utils.shared2numpy(dec.params), 'decoder.npz', keep=5)
     print('Training finished!')
 
 
 if __name__ == '__main__':
-    resume()
+    test()
